@@ -47,7 +47,7 @@ class CMakeBuild(build_ext):
             "-DEXAMPLE_VERSION_INFO={}".format(self.distribution.get_version()),
             "-DCMAKE_BUILD_TYPE={}".format(cfg),  # not used on MSVC, but no harm
             "-DWITH_ARPACK=ON",
-            "-DOpenCV_DIR=/home/iago/graffter/libs/opencv/opencv-4.1.1/build_linux_contrib_static_release/install/lib/cmake/opencv4"
+            #"-DOpenCV_DIR=/home/iago/software/opencv/opencv-4.1.1/install_contrib_linux_release/lib/cmake/opencv4"
         ]
         build_args = []
 

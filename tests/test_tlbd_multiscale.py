@@ -45,8 +45,8 @@ def draw_multiscale_matches(img_left, img_right, segs_left, segs_right, matches)
 
 
 # read both images
-imgLeft = cv2.imread('resources/leuven1.jpg', cv2.IMREAD_GRAYSCALE)
-imgRight = cv2.imread('resources/leuven2.jpg', cv2.IMREAD_GRAYSCALE)
+imgLeft = cv2.imread('resources/boat1.jpg', cv2.IMREAD_GRAYSCALE)
+imgRight = cv2.imread('resources/boat3.jpg', cv2.IMREAD_GRAYSCALE)
 
 # Detect segments
 multiscaleL = pytlbd.edlines_multiscale(imgLeft)

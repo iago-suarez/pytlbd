@@ -37,3 +37,15 @@ To compile the C++ code:
 cmake -DCMAKE_BUILD_TYPE=Release -DWITH_ARPACK=ON ..
 make -j
 ```
+
+
+## Test
+
+Once the library has been installed, you can check the examples for single scale segment detection and multi scale segment detection:
+
+```
+python3 tests/test_tlbd_singlescale.py
+python3 tests/test_tlbd_multiscale.py
+```
+
+![](resources/resulting_matches.jpg)
