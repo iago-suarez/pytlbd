@@ -56,7 +56,7 @@ std::vector<cv::DMatch> MultiScaleMatching::matchesFromDistMatrix(cv::Mat_<doubl
     }
 
     desDisMat(minLoc) = FLT_MAX;
-    matches.push_back(cv::DMatch(minLoc.x, minLoc.y, minDistance));
+    matches.emplace_back(minLoc.x, minLoc.y, minDistance);
     cv::Mat row = desDisMat.row(minLoc.y);
     for (int i = 0; i < (kMatches - 1); i++) {
       cv::minMaxLoc(row, &minDistance, &_, &minLoc2);
@@ -64,7 +64,7 @@ std::vector<cv::DMatch> MultiScaleMatching::matchesFromDistMatrix(cv::Mat_<doubl
         break;//the descriptor difference is too large;
       }
       desDisMat(minLoc2) = FLT_MAX;
-      matches.push_back(cv::DMatch(minLoc2.x, minLoc2.y, minDistance));
+      matches.emplace_back(minLoc2.x, minLoc2.y, minDistance);
     }
     desDisMat.row(minLoc.y).setTo(FLT_MAX);
   }

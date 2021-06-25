@@ -148,6 +148,10 @@ class MultiOctaveSegmentDetector {
 
   std::vector<std::vector<cv::line_descriptor::KeyLine>> octaveKeyLines(const cv::Mat &image);
 
+  ScaleLines mergeOctaveLines(const std::vector<Segments>& octaveSegments,
+                              const std::vector<std::vector<float>>& saliencies,
+                              const std::vector<std::vector<size_t>>& nPixels);
+
   inline const std::vector<eth::OctaveKeyLineDetectorPtr> &getDetectors() const { return octaveSegDetectors; }
 
   inline eth::OctaveKeyLineDetectorPtr getDetector(size_t octave) const {
