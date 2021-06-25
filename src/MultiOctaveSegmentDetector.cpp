@@ -30,7 +30,7 @@ std::vector<std::vector<cv::line_descriptor::KeyLine>> MultiOctaveSegmentDetecto
   }
 
   // The down sample factor between connective two octave images
-  float factor = M_SQRT2;
+  constexpr float factor = M_SQRT2;
   std::vector<cv::Mat> pyramid = buildGaussianPyramid(image, factor);
 
   unsigned int numOfFinalLine = 0;
@@ -71,7 +71,7 @@ std::vector<std::vector<cv::line_descriptor::KeyLine>> MultiOctaveSegmentDetecto
   /*more than one octave image, organize lines in scale space.
    *lines corresponding to the same line in octave images should have the same index in the ScaleLineVec */
   if (numOfOctaves > 1) {
-    float twoPI = 2 * M_PI;
+    constexpr float twoPI = 2 * M_PI;
     unsigned int closeLineID;
     float endPointDis, minEndPointDis, minLocalDis, maxLocalDis;
     float lp0, lp1, lp2, lp3, np0, np1, np2, np3;

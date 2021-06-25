@@ -45,7 +45,10 @@ target_link_libraries(pytlbd PRIVATE tlbd ${OpenCV_LIBS} ${ARPACK_LIBRARIES})
 
 target_compile_definitions(pytlbd PRIVATE VERSION_INFO=${EXAMPLE_VERSION_INFO})
 
+add_subdirectory(googletest)
+include_directories(${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR})
+
 enable_testing()
 add_executable(test_tlbd tests/test_tlbd.cpp)
-target_link_libraries(test_tlbd PRIVATE tlbd ${OpenCV_LIBS} ${ARPACK_LIBRARIES})
+target_link_libraries(test_tlbd PRIVATE tlbd ${OpenCV_LIBS} ${ARPACK_LIBRARIES} gtest)
 add_test(test_tlbd test_tlbd)

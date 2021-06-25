@@ -5,6 +5,9 @@
 #include "LineBandDescriptor.h"
 #include <PairwiseLineMatching.h>
 #include <EDLineDetector.h>
+#include <gtest/gtest.h>
+
+using namespace eth;
 
 void draw_matches(const cv::Mat &cvLeftImage, const cv::Mat &cvRightImage,
                   const eth::ScaleLines &linesInLeft, const eth::ScaleLines &linesInRight,
@@ -109,7 +112,7 @@ void draw_matches(const cv::Mat &cvLeftImage, const cv::Mat &cvRightImage,
   cv::waitKey();
 }
 
-void line_matching_example_leuven() {
+TEST(TLBD, line_matching_example_leuven) {
 
   //load first image from file
   cv::Mat cvLeftImage = cv::imread("../resources/leuven1.jpg", cv::IMREAD_GRAYSCALE);
@@ -132,7 +135,7 @@ void line_matching_example_leuven() {
   lineMatch.matchLines(linesInLeft, linesInRight, descriptorsLeft, descriptorsRight, matchResult);
 
   // Show the result
-  draw_matches(cvLeftImage, cvRightImage, linesInLeft, linesInRight, matchResult);
+//  draw_matches(cvLeftImage, cvRightImage, linesInLeft, linesInRight, matchResult);
 
   std::vector<std::pair<uint32_t, uint32_t>> expectedMatch = {
       {45, 60}, {44, 49}, {47, 62}, {162, 182}, {80, 91}, {0, 1}, {3, 4}, {79, 90}, {180, 54}, {173, 193}, {125, 134},
@@ -169,15 +172,15 @@ void line_matching_example_leuven() {
 
 //  std::cout << "matchResult: " << matchResult << std::endl;
 
-  assert(275 == matchResult.size());
+  ASSERT_EQ(275, matchResult.size());
   for (int i = 0; i < matchResult.size(); i++) {
 //    std::cout << "{" << matchResult[i].first << ", " << matchResult[i].second << "}," << std::endl;
-    assert(expectedMatch[i].first == matchResult[i].first);
-    assert(expectedMatch[i].second == matchResult[i].second);
+    ASSERT_EQ(expectedMatch[i].first, matchResult[i].first);
+    ASSERT_EQ(expectedMatch[i].second, matchResult[i].second);
   }
 }
 
-void line_matching_example_boat() {
+TEST(TLBD, line_matching_example_boat) {
 
   //load first image from file
   cv::Mat cvLeftImage = cv::imread("../resources/boat1.jpg", cv::IMREAD_GRAYSCALE);
@@ -201,7 +204,7 @@ void line_matching_example_boat() {
   lineMatch.matchLines(linesInLeft, linesInRight, descriptorsLeft, descriptorsRight, matchResult);
 
   // Show the result
-  draw_matches(cvLeftImage, cvRightImage, linesInLeft, linesInRight, matchResult);
+//  draw_matches(cvLeftImage, cvRightImage, linesInLeft, linesInRight, matchResult);
 
   std::vector<std::pair<uint32_t, uint32_t>> expectedMatch = {
       {369, 118}, {236, 147}, {227, 144}, {335, 101}, {699, 395}, {349, 143}, {163, 63}, {58, 114}, {641, 310},
@@ -232,19 +235,34 @@ void line_matching_example_boat() {
       {642, 421}, {594, 266}, {15, 7}, {737, 173}, {481, 300}, {841, 482},
   };
 
-  assert(236 == matchResult.size());
+  ASSERT_EQ(236, matchResult.size());
   for (int i = 0; i < matchResult.size(); i++) {
 //    std::cout << "{" << matchResult[i].first << ", " << matchResult[i].second << "}," << std::endl;
-    assert(expectedMatch[i].first == matchResult[i].first);
-    assert(expectedMatch[i].second == matchResult[i].second);
+    ASSERT_EQ(expectedMatch[i].first, matchResult[i].first);
+    ASSERT_EQ(expectedMatch[i].second, matchResult[i].second);
   }
 }
 
-int main() {
+TEST(MultiScaleSegments, DuplicatedSegments) {
+  cv::Mat img = cv::imread("../resources/boat1.jpg", cv::IMREAD_GRAYSCALE);
+
+  EDLineDetector edlines;
+  Segments segs = edlines.detect(img);
+
+  ScaleLines expected;
+  for (Segment s :segs) {
+    expected.push_back({keyline_from_seg(s), keyline_from_seg(s)});
+  }
+
+  // Checks that the method is able to group perfectly aligned segments
+  MultiOctaveSegmentDetector mosd(std::make_shared<eth::EDLineDetector>());
+
+}
+
+int main(int argc, char **argv) {
   std::cout << "**********************************************" << std::endl;
   std::cout << "****************** TLBD Test *****************" << std::endl;
   std::cout << "**********************************************" << std::endl;
-
-  line_matching_example_leuven();
-  line_matching_example_boat();
+  ::testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
 }

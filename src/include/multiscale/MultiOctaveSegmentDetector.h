@@ -75,6 +75,7 @@ class StateOctaveKeyLineDetector : public OctaveKeyLineDetector {
       meanGradientX += dxImg.at<short>(y, x);
       meanGradientY += dyImg.at<short>(y, x);
     }
+    //TODO This can be done in a more elegant way.
     double dx = fabs(lineEquation[1]);
     double dy = fabs(lineEquation[0]);
     if (meanGradientX == 0 && meanGradientY == 0) {
