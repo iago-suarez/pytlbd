@@ -67,6 +67,7 @@ std::vector<std::vector<cv::line_descriptor::KeyLine>> MultiOctaveSegmentDetecto
 
   float rho1, rho2, tempValue;
   float direction, near, length;
+  float dx1, dy1, s1, endpoints2, dx2, dy2, s2, diffangle, e1, e2;
   unsigned int octaveID, lineIDInOctave;
   /*more than one octave image, organize lines in scale space.
    *lines corresponding to the same line in octave images should have the same index in the ScaleLineVec */
@@ -81,7 +82,8 @@ std::vector<std::vector<cv::line_descriptor::KeyLine>> MultiOctaveSegmentDetecto
       /*for each line in current octave image, find their corresponding lines in the octaveLines,
        *give them the same value of lineIDInScaleLineVec*/
       for (unsigned int lineCurId = 0; lineCurId < octaveEndpoints.size(); lineCurId++) {
-        rho1 = scale[octaveCount] * fabs(octaveSegDetectors[octaveCount]->getLineEquations()[lineCurId][2]);
+        cv::Vec3f eq = math::segEquation(octaveSegDetectors[octaveCount]->getDetectedSegments()[lineCurId]);
+        rho1 = scale[octaveCount] * fabs(eq[2]);
         /*nearThreshold depends on the distance of the image coordinate origin to current line.
          *so nearThreshold = rho1 * nearThresholdRatio, where nearThresholdRatio = 1-cos(10*pi/180) = 0.0152*/
         tempValue = rho1 * 0.0152;
@@ -104,6 +106,17 @@ std::vector<std::vector<cv::line_descriptor::KeyLine>> MultiOctaveSegmentDetecto
            *note that, in EDLine class, we have normalized the line equations to make a1^2+ b1^2 = a2^2+ b2^2 = 1*/
           direction = fabs(octaveSegDetectors[octaveCount]->getSegmentsDirection()[lineCurId] -
               octaveSegDetectors[octaveID]->getSegmentsDirection()[lineIDInOctave]);
+
+          const cv::Vec4f& endpoints1 = octaveEndpoints[lineCurId];
+          dx1 = endpoints1[2] - endpoints1[0];
+          dy1 = endpoints1[3] - endpoints1[1];
+          s1 = std::sqrt(dx1 * dx1 + dy1 * dy1);
+          const cv::Vec4f& endpoints2 = octaveEndpoints[lineCurId];
+          dx2 = endpoints2[2] - endpoints2[0];
+          dy2 = endpoints2[3] - endpoints2[1];
+          s2 = std::sqrt(dx2 * dx2 + dy2 * dy2);
+          diffangle = std::acos((dx1 * dx2 + dy1 * dy2) / (s1 * s2));
+          //TODO Use diffangle instead of direction
           if (direction > 0.1745 && (twoPI - direction > 0.1745)) {
             continue;//the angle between two lines are larger than 10degrees(i.e. 10*pi/180=0.1745), they are not close to parallel.
           }
@@ -113,7 +126,8 @@ std::vector<std::vector<cv::line_descriptor::KeyLine>> MultiOctaveSegmentDetecto
            *In our case, rho1 = |c1| and rho2 = |c2|, because sqrt(a1^2+b1^2) = sqrt(a2^2+b2^2) = 1;
            *note that, lines are in different octave images, so we define near =  fabs(scale*rho1 - rho2) or
            *where scale is the scale factor between to octave images*/
-          rho2 = scale[octaveID] * fabs(octaveSegDetectors[octaveID]->getLineEquations()[lineIDInOctave][2]);
+          cv::Vec3f eq2 = math::segEquation(octaveSegDetectors[octaveID]->getDetectedSegments()[lineIDInOctave]);
+          rho2 = scale[octaveID] * fabs(eq2[2]);
           near = fabs(rho1 - rho2);
           if (near > nearThreshold) {
             continue;//two line are not near in the image
@@ -180,7 +194,6 @@ std::vector<std::vector<cv::line_descriptor::KeyLine>> MultiOctaveSegmentDetecto
 
   std::vector<std::vector<cv::line_descriptor::KeyLine>> keyLines(lineIDInScaleLineVec);
   unsigned int tempID;
-  float s1, e1, s2, e2;
   bool shouldChange;
   cv::line_descriptor::KeyLine singleLine;
   for (unsigned int lineID = 0; lineID < numOfFinalLine; lineID++) {
@@ -202,27 +215,17 @@ std::vector<std::vector<cv::line_descriptor::KeyLine>> MultiOctaveSegmentDetecto
     dy = e2 - s2;//ey-sy
     // Position the points in such a way that its atan2 produce the correct angle aligned with the image gradient
     shouldChange = (dx * std::cos(direction) + dy * std::sin(direction)) < 0;
+    assert(!shouldChange);
 
     tempValue = scale[octaveID];
-    if (shouldChange) {
-      singleLine.sPointInOctaveX = e1;
-      singleLine.sPointInOctaveY = e2;
-      singleLine.ePointInOctaveX = s1;
-      singleLine.ePointInOctaveY = s2;
-      singleLine.startPointX = tempValue * e1;
-      singleLine.startPointY = tempValue * e2;
-      singleLine.endPointX = tempValue * s1;
-      singleLine.endPointY = tempValue * s2;
-    } else {
-      singleLine.sPointInOctaveX = s1;
-      singleLine.sPointInOctaveY = s2;
-      singleLine.ePointInOctaveX = e1;
-      singleLine.ePointInOctaveY = e2;
-      singleLine.startPointX = tempValue * s1;
-      singleLine.startPointY = tempValue * s2;
-      singleLine.endPointX = tempValue * e1;
-      singleLine.endPointY = tempValue * e2;
-    }
+    singleLine.sPointInOctaveX = s1;
+    singleLine.sPointInOctaveY = s2;
+    singleLine.ePointInOctaveX = e1;
+    singleLine.ePointInOctaveY = e2;
+    singleLine.startPointX = tempValue * s1;
+    singleLine.startPointY = tempValue * s2;
+    singleLine.endPointX = tempValue * e1;
+    singleLine.endPointY = tempValue * e2;
 
     dx = singleLine.endPointX - singleLine.startPointX;
     dy = singleLine.endPointY - singleLine.startPointY;

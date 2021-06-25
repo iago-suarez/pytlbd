@@ -6,6 +6,7 @@
  */
 #include "EDLineDetector.h"
 #include <opencv2/opencv.hpp>
+#include <BresenhamAlgorithm.h>
 
 #define LBD_Horizontal  1//if |dx|<|dy|;
 #define LBD_Vertical    2//if |dy|<=|dx|;
@@ -1178,6 +1179,29 @@ int EDLineDetector::EDline(cv::Mat &image, LineChains &lines, bool smoothed) {
   cvWaitKey(0);
   cvReleaseImage(&cvColorImg);
 #endif
+
+  float dx, dy;
+  bool shouldChange;
+  for (int i = 0; i < lines.numOfLines; i++) {
+    cv::Vec4f &endpoints = lineEndpoints[i];
+    direction = lineDirection_[i];
+    dx = endpoints[2] - endpoints[0];
+    dy = endpoints[3] - endpoints[1];
+
+    float gradx = 0, grady = 0;
+    for (Pixel &px : bresenham(endpoints[0], endpoints[1], endpoints[2], endpoints[3])) {
+      gradx += dxImg_.at<short>(px.y, px.x);
+      grady += dyImg_.at<short>(px.y, px.x);
+    }
+
+    // For a 90 degrees rotation: dx, dy = -dy, dx
+    shouldChange = (-dy * gradx + dx * grady) < 0;
+    if (shouldChange) endpoints = {endpoints[2], endpoints[3], endpoints[0], endpoints[1]};
+    dx = endpoints[2] - endpoints[0];
+    dy = endpoints[3] - endpoints[1];
+    lineDirection_[i] = std::atan2(dy, dx);
+  }
+  
   return 1;
 }
 

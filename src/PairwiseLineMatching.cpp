@@ -107,19 +107,19 @@ double PairwiseLineMatching::globalRotationOfImagePair(eth::ScaleLines &linesInL
   lengthLeft = 0;
   lengthRight = 0;
 
-  for (size_t linenum = 0; linenum < linesInLeft.size(); linenum++) {
-    direction = linesInLeft[linenum][0].angle + M_PI + angleShift;
+  for (auto & lineVec : linesInLeft) {
+    direction = lineVec[0].angle + M_PI + angleShift;
     direction = direction < TwoPI ? direction : (direction - TwoPI);
     index = floor(direction * scalar);
     angleHistLeft[index]++;
-    lengthLeft[index] += linesInLeft[linenum][0].lineLength;
+    lengthLeft[index] += lineVec[0].lineLength;
   }
-  for (size_t linenum = 0; linenum < linesInRight.size(); linenum++) {
-    direction = linesInRight[linenum][0].angle + M_PI + angleShift;
+  for (auto & lineVec : linesInRight) {
+    direction = lineVec[0].angle + M_PI + angleShift;
     direction = direction < TwoPI ? direction : (direction - TwoPI);
     index = floor(direction * scalar);
     angleHistRight[index]++;
-    lengthRight[index] += linesInRight[linenum][0].lineLength;
+    lengthRight[index] += lineVec[0].lineLength;
   }
 
   angleHistLeft = (1 / cv::norm(angleHistLeft)) * angleHistLeft;
