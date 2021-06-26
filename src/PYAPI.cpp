@@ -78,7 +78,7 @@ inline PyScaleLines scalelines_to_py(const ScaleLines &scaleLines) {
                                                    octaveSeg.ePointInOctaveX,
                                                    octaveSeg.ePointInOctaveY,
                                                    octaveSeg.response,
-                                                   (float) octaveSeg.numOfPixels
+                                                   (float)octaveSeg.numOfPixels
                                                   });
       result.back().emplace_back(octaveSeg.octave, pyseg);
     }
@@ -99,12 +99,13 @@ inline std::vector<std::vector<py::array_t<float>>> descrs_to_py(const std::vect
   return result;
 }
 
-inline std::vector<std::vector<cv::Mat>> descrs_to_cpp(const std::vector<std::vector<py::array_t<float>>> &descriptors) {
+inline std::vector<std::vector<cv::Mat>> descrs_to_cpp(const std::vector<std::vector<py::array_t<
+    float>>> &descriptors) {
   std::vector<std::vector<cv::Mat>> result(descriptors.size());
   for (int i = 0; i < descriptors.size(); i++) {
     for (const py::array_t<float> &d : descriptors[i]) {
       assert(d.ndim() == 1);
-      cv::Mat cppdescr(1, d.shape(0), CV_32F, (uchar *) d.data());
+      cv::Mat cppdescr(1, d.shape(0), CV_32F, (uchar *)d.data());
       result[i].push_back(cppdescr);
     }
   }
@@ -138,9 +139,9 @@ py::array_t<float> run_edlines_single_scale(const py::array &img) {
   // LSD call. Returns [x1,y1,x2,y2,width,p,-log10(NFA)] for each segment
   EDLineDetector edline;
   SalientSegments salientSegs = edline.detectSalient(image);
-  std::cout << "Detected " << salientSegs.size() << " Edlines Segments" << std::endl;
+  // std::cout << "Detected " << salientSegs.size() << " Edlines Segments" << std::endl;
 
-  py::array_t<float> segments({(int) salientSegs.size(), 5});
+  py::array_t<float> segments({(int)salientSegs.size(), 5});
   for (int i = 0; i < salientSegs.size(); i++) {
     segments[py::make_tuple(i, 0)] = salientSegs[i].segment[0];
     segments[py::make_tuple(i, 1)] = salientSegs[i].segment[1];
@@ -167,6 +168,30 @@ py::list run_edlines_multiscale(const py::array &img) {
 
   eth::MultiOctaveSegmentDetector detector(std::make_shared<eth::EDLineDetector>());
   eth::ScaleLines scaleLines = detector.octaveKeyLines(image);
+  return py::cast(scalelines_to_py(scaleLines));
+}
+
+py::list run_merge_multiscale_segs(const std::vector<py::array_t<float>> &multiscale_segments) {
+
+  std::vector<Segments> octaveSegments(multiscale_segments.size());
+  std::vector<std::vector<float>> saliencies(multiscale_segments.size());
+  std::vector<std::vector<size_t>> nPixels(multiscale_segments.size());
+  for (int i = 0; i < multiscale_segments.size(); i++) {
+    ASSERT_ALW(multiscale_segments[i].ndim() == 2);
+    ASSERT_ALW(multiscale_segments[i].shape(1) == 5);
+    const auto &segments = multiscale_segments[i];
+    octaveSegments[i] = pyarr_to_segments(segments);
+    for (int j = 0; j < segments.shape(0); j++) {
+      saliencies[i].push_back(segments.at(j, 4));
+      Segment s = octaveSegments[i][j];
+      int n = std::ceil(std::max(std::abs(s[2] - s[0]), std::abs(s[3] - s[1])));
+      nPixels[i].push_back(n);
+    }
+  }
+
+  ScaleLines scaleLines = MultiOctaveSegmentDetector::mergeOctaveLines(octaveSegments,
+                                                                       saliencies,
+                                                                       nPixels);
   return py::cast(scalelines_to_py(scaleLines));
 }
 
@@ -199,7 +224,8 @@ py::array_t<float> run_lbd_single_scale(const py::array &img,
     kl.response = segments.shape(1) > 4 ? segments.at(i, 4) : 0;
     kl.numOfPixels = segments.shape(1) > 5 ?
                      segments.at(i, 5) :
-                     std::max(std::abs(kl.endPointX - kl.startPointX), std::abs(kl.endPointY - kl.startPointY));
+                     std::ceil(std::max(std::abs(kl.endPointX - kl.startPointX),
+                                        std::abs(kl.endPointY - kl.startPointY)));
     kl.size = 0;
     cppMultiscaleSegs[i].push_back(kl);
   }
@@ -254,7 +280,8 @@ py::list run_lbd_matching_multiscale(const py::list &segs1, const py::list &segs
   ScaleLines cppSegs1 = scalelines_to_cpp(segs1), cppSegs2 = scalelines_to_cpp(segs2);
   const auto &tmp1 = py::cast<std::vector<std::vector<py::array_t<float>>> >(descrs1);
   const auto &tmp2 = py::cast<std::vector<std::vector<py::array_t<float>>> >(descrs2);
-  std::vector<std::vector<cv::Mat>> cppDescrs1 = descrs_to_cpp(tmp1), cppDescrs2 = descrs_to_cpp(tmp2);
+  std::vector<std::vector<cv::Mat>> cppDescrs1 = descrs_to_cpp(tmp1),
+      cppDescrs2 = descrs_to_cpp(tmp2);
 
   lineMatch.matchLines(cppSegs1, cppSegs2, cppDescrs1, cppDescrs2, result);
   return py::cast(result);
@@ -279,6 +306,10 @@ PYBIND11_MODULE(pytlbd, m) {
 
   m.def("edlines_multiscale", &run_edlines_multiscale, R"pbdoc(
         Computes Lilian Zhang implementation of EDLines in multiple scales.
+    )pbdoc");
+
+  m.def("merge_multiscale_segs", &run_merge_multiscale_segs, R"pbdoc(
+        Groups the same segment detected in several scales.
     )pbdoc");
 
   m.def("lbd_single_scale", &run_lbd_single_scale, R"pbdoc(

@@ -44,23 +44,82 @@ def draw_multiscale_matches(img_left, img_right, segs_left, segs_right, matches)
     return result_img
 
 
-# read both images
-imgLeft = cv2.imread('resources/boat1.jpg', cv2.IMREAD_GRAYSCALE)
-imgRight = cv2.imread('resources/boat3.jpg', cv2.IMREAD_GRAYSCALE)
+def ldb_multiscale():
+    # read both images
+    imgLeft = cv2.imread('resources/boat1.jpg', cv2.IMREAD_GRAYSCALE)
+    imgRight = cv2.imread('resources/boat3.jpg', cv2.IMREAD_GRAYSCALE)
 
-# Detect segments
-multiscaleL = pytlbd.edlines_multiscale(imgLeft)
-multiscaleR = pytlbd.edlines_multiscale(imgRight)
+    # Detect segments
+    multiscaleL = pytlbd.edlines_multiscale(imgLeft)
+    multiscaleR = pytlbd.edlines_multiscale(imgRight)
 
-# Compute multi-scale descriptors
-descriptorsL = pytlbd.lbd_multiscale(imgLeft, multiscaleL, 9, 7)
-descriptorsR = pytlbd.lbd_multiscale(imgRight, multiscaleR, 9, 7)
+    # Compute multi-scale descriptors
+    descriptorsL = pytlbd.lbd_multiscale(imgLeft, multiscaleL, 9, 7)
+    descriptorsR = pytlbd.lbd_multiscale(imgRight, multiscaleR, 9, 7)
 
-# Find matches using the heuristic approach defined in the paper
-matching_result = pytlbd.lbd_matching_multiscale(multiscaleL, multiscaleR, descriptorsL, descriptorsR)
-print(f'Found {len(matching_result)} matches.')
+    # Find matches using the heuristic approach defined in the paper
+    matching_result = pytlbd.lbd_matching_multiscale(multiscaleL, multiscaleR, descriptorsL, descriptorsR)
+    print(f'Found {len(matching_result)} matches.')
 
-# Draw the resulting matches
-matchesImage = draw_multiscale_matches(imgLeft, imgRight, multiscaleL, multiscaleR, matching_result)
-cv2.imshow("Matches found", matchesImage)
-cv2.waitKey()
+    # Draw the resulting matches
+    matchesImage = draw_multiscale_matches(imgLeft, imgRight, multiscaleL, multiscaleR, matching_result)
+    cv2.imshow("Matches found", matchesImage)
+    cv2.waitKey()
+
+
+def process_pyramid(img, detector, n_levels=5, level_scale=np.sqrt(2)):
+    # TODO
+    # pyr = [img]
+    # for i in range(n_levels):
+    #     pyr_img = cv2.pyrUp(pyr[-1], (int(pyr[-1].shape[1] / np.sqrt(2)), int(pyr[-1].shape[0] / np.sqrt(2))))
+    #     pyr.append(pyr_img)
+
+    octave_img = img.copy()
+    pre_sigma2 = 0
+    cur_sigma2 = 1.0
+    pyramid = []
+    multiscale_segs = []
+    for i in range(n_levels):
+        increase_sigma = np.sqrt(cur_sigma2 - pre_sigma2)
+        blurred = cv2.GaussianBlur(octave_img, (5, 5), increase_sigma, increase_sigma, cv2.BORDER_REPLICATE)
+        pyramid.append(blurred)
+
+        multiscale_segs.append(detector(blurred))
+
+        # down sample the current octave image to get the next octave image
+        new_size = (int(octave_img.shape[1] / level_scale), int(octave_img.shape[0] / level_scale))
+        octave_img = cv2.resize(blurred, new_size, 0, 0, interpolation=cv2.INTER_NEAREST)
+        pre_sigma2 = cur_sigma2
+        cur_sigma2 = cur_sigma2 * 2
+
+    return multiscale_segs, pyramid
+
+
+def py_multi_scale_demo():
+    # read both images
+    imgLeft = cv2.imread('resources/boat1.jpg', cv2.IMREAD_GRAYSCALE)
+    imgRight = cv2.imread('resources/boat3.jpg', cv2.IMREAD_GRAYSCALE)
+
+    left_multiscale_segs, left_pyramid = process_pyramid(imgLeft, pytlbd.edlines_single_scale)
+    multiscaleL = pytlbd.merge_multiscale_segs(left_multiscale_segs)
+
+    right_multiscale_segs, right_pyramid = process_pyramid(imgRight, pytlbd.edlines_single_scale)
+    multiscaleR = pytlbd.merge_multiscale_segs(right_multiscale_segs)
+
+    # Compute multi-scale descriptors
+    descriptorsL = pytlbd.lbd_multiscale(imgLeft, multiscaleL, 9, 7)
+    descriptorsR = pytlbd.lbd_multiscale(imgRight, multiscaleR, 9, 7)
+
+    # Find matches using the heuristic approach defined in the paper
+    matching_result = pytlbd.lbd_matching_multiscale(multiscaleL, multiscaleR, descriptorsL, descriptorsR)
+    print(f'Found {len(matching_result)} matches.')
+
+    # Draw the resulting matches
+    matchesImage = draw_multiscale_matches(imgLeft, imgRight, multiscaleL, multiscaleR, matching_result)
+    cv2.imshow("Matches found", matchesImage)
+    cv2.waitKey()
+
+
+if __name__ == '__main__':
+    ldb_multiscale()
+    py_multi_scale_demo()

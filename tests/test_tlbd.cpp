@@ -285,16 +285,36 @@ TEST(MultiScaleSegments, DuplicatedSegments) {
   cv::Mat img = cv::imread("../resources/boat1.jpg", cv::IMREAD_GRAYSCALE);
 
   EDLineDetector edlines;
-  Segments segs = edlines.detect(img);
+  SalientSegments segs = edlines.detectSalient(img);
 
   ScaleLines expected;
-  for (Segment s :segs) {
-    expected.push_back({keyline_from_seg(s), keyline_from_seg(s)});
+  for (SalientSegment s : segs) {
+    expected.push_back({keyline_from_seg(s.segment), keyline_from_seg(s.segment)});
   }
 
   // Checks that the method is able to group perfectly aligned segments
-  MultiOctaveSegmentDetector mosd(std::make_shared<eth::EDLineDetector>());
+  std::vector<Segments> octaveSegs(2);
+  std::vector<std::vector<float>>saliencies(2);
+  std::vector<std::vector<size_t>>nPixels(2);
+  for (SalientSegment& ss : segs){
+    octaveSegs[0].push_back(ss.segment);
+    octaveSegs[1].push_back(ss.segment / M_SQRT2);
+    saliencies[0].push_back(ss.salience);
+    saliencies[1].push_back(ss.salience);
+    nPixels[0].push_back((size_t) math::segLength(ss.segment));
+    nPixels[1].push_back(size_t(math::segLength(ss.segment) / M_SQRT2));
+  }
 
+  ScaleLines mergedSegs = MultiOctaveSegmentDetector::mergeOctaveLines(octaveSegs, saliencies, nPixels);
+
+  ASSERT_EQ(segs.size(), mergedSegs.size());
+  for(auto & lineVec : mergedSegs){
+    ASSERT_EQ(2, lineVec.size());
+    ASSERT_FLOAT_EQ(lineVec[0].startPointX, lineVec[1].startPointX);
+    ASSERT_FLOAT_EQ(lineVec[0].startPointY, lineVec[1].startPointY);
+    ASSERT_FLOAT_EQ(lineVec[0].endPointX, lineVec[1].endPointX);
+    ASSERT_FLOAT_EQ(lineVec[0].endPointY, lineVec[1].endPointY);
+  }
 }
 
 int main(int argc, char **argv) {
