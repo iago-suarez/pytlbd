@@ -281,6 +281,48 @@ TEST(TLBD, line_matching_example_boat) {
   }
 }
 
+TEST(TLBD, line_matching_example_graf) {
+
+  //load first image from file
+  cv::Mat cvLeftImage = cv::imread("../resources/graf1.ppm", cv::IMREAD_GRAYSCALE);
+  cv::Mat cvRightImage = cv::imread("../resources/graf2.ppm", cv::IMREAD_GRAYSCALE);
+
+
+  // 2.1. Detecting lines in the scale space
+  eth::MultiOctaveSegmentDetector detector(std::make_shared<eth::EDLineDetector>());
+  eth::ScaleLines linesInLeft = detector.octaveKeyLines(cvLeftImage);
+  eth::ScaleLines linesInRight = detector.octaveKeyLines(cvRightImage);
+
+  // Description: 2.2. The band representation of the line support region & 2.3. The construction of the Line Band Descriptor
+  eth::LineBandDescriptor lineDesc;
+  std::vector<std::vector<cv::Mat>> descriptorsLeft, descriptorsRight;
+  lineDesc.compute(cvLeftImage, linesInLeft, descriptorsLeft);
+  lineDesc.compute(cvRightImage, linesInRight, descriptorsRight);
+
+  // 3. Graph matching using spectral technique
+  std::vector<std::pair<uint32_t, uint32_t>> matchResult;
+  eth::PairwiseLineMatching lineMatch;
+  lineMatch.matchLines(linesInLeft, linesInRight, descriptorsLeft, descriptorsRight, matchResult);
+
+  // Show the result
+  draw_matches(cvLeftImage, cvRightImage, linesInLeft, linesInRight, matchResult);
+
+  std::vector<std::pair<uint32_t, uint32_t>> expectedMatch = {
+  };
+
+//  for (int i = 0; i < matchResult.size(); i++) {
+//    std::cout << "{" << matchResult[i].first << ", " << matchResult[i].second << "}," << std::endl;
+//  }
+
+  ASSERT_EQ(236, matchResult.size());
+  for (int i = 0; i < matchResult.size(); i++) {
+//    std::cout << "{" << matchResult[i].first << ", " << matchResult[i].second << "}," << std::endl;
+    ASSERT_EQ(expectedMatch[i].first, matchResult[i].first);
+    ASSERT_EQ(expectedMatch[i].second, matchResult[i].second);
+  }
+}
+
+
 TEST(MultiScaleSegments, DuplicatedSegments) {
   cv::Mat img = cv::imread("../resources/boat1.jpg", cv::IMREAD_GRAYSCALE);
 
