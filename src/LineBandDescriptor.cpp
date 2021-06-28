@@ -93,7 +93,8 @@ int LineBandDescriptor::compute(const cv::Mat &image,
   computePyramid |= multiOctaveDetector->getDetectors().empty();
   if (!computePyramid) {
     for (int o = 0; o < multiOctaveDetector->getDetectors().size(); o++) {
-      computePyramid |= multiOctaveDetector->getDetector(o)->getImgSize().empty();
+      cv::Size tmp = multiOctaveDetector->getDetector(o)->getImgSize();
+      computePyramid |=  (tmp.width <= 0) || (tmp.height <= 0);
     }
   }
 

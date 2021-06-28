@@ -25,6 +25,7 @@ You need to have installed OpenCV in your system or rather modify the setup.py f
 include its installation directory.
 
 ```
+sudo apt-get install libopencv-dev libopencv-contrib-dev libarpack++2-dev libarpack2-dev libsuperlu-dev
 git clone --recursive https://github.com/iago-suarez/pytlbd.git
 cd pytlbd
 pip3 install -r requirements.txt
