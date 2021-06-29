@@ -78,7 +78,7 @@ inline PyScaleLines scalelines_to_py(const ScaleLines &scaleLines) {
                                                    octaveSeg.ePointInOctaveX,
                                                    octaveSeg.ePointInOctaveY,
                                                    octaveSeg.response,
-                                                   (float)octaveSeg.numOfPixels
+                                                   (float) octaveSeg.numOfPixels
                                                   });
       result.back().emplace_back(octaveSeg.octave, pyseg);
     }
@@ -105,7 +105,7 @@ inline std::vector<std::vector<cv::Mat>> descrs_to_cpp(const std::vector<std::ve
   for (int i = 0; i < descriptors.size(); i++) {
     for (const py::array_t<float> &d : descriptors[i]) {
       assert(d.ndim() == 1);
-      cv::Mat cppdescr(1, d.shape(0), CV_32F, (uchar *)d.data());
+      cv::Mat cppdescr(1, d.shape(0), CV_32F, (uchar *) d.data());
       result[i].push_back(cppdescr);
     }
   }
@@ -141,7 +141,7 @@ py::array_t<float> run_edlines_single_scale(const py::array &img) {
   SalientSegments salientSegs = edline.detectSalient(image);
   // std::cout << "Detected " << salientSegs.size() << " Edlines Segments" << std::endl;
 
-  py::array_t<float> segments({(int)salientSegs.size(), 5});
+  py::array_t<float> segments({(int) salientSegs.size(), 5});
   for (int i = 0; i < salientSegs.size(); i++) {
     segments[py::make_tuple(i, 0)] = salientSegs[i].segment[0];
     segments[py::make_tuple(i, 1)] = salientSegs[i].segment[1];
@@ -270,6 +270,45 @@ py::list run_lbd_multiscale(const py::array &img,
   return py::cast(descrs_to_py(descriptors));
 }
 
+py::list run_lbd_multiscale_pyr(const std::vector<py::array> &pyr,
+                                const py::list &multiscale_segs,
+                                int numOfBands = 9,
+                                int widthOfBand = 7) {
+  ASSERT_ALW(numOfBands > 0);
+  ASSERT_ALW(widthOfBand > 0);
+
+  if (pyr.empty()) {
+    throw py::type_error("Error: You should provide at least one image in the pyramid.");
+  }
+
+  std::vector<cv::Mat> cppPyr;
+  for (const py::array &pyr_img : pyr) {
+    py::buffer_info info = pyr_img.request();
+    if (info.format != "B") {
+      throw py::type_error("Error: The provided numpy array has the wrong type");
+    }
+
+    if (info.shape.size() != 2) {
+      throw py::type_error("Error: You should provide a 2 dimensional array.");
+    }
+
+    auto *imagePtr = static_cast<uint8_t *>(info.ptr);
+    cppPyr.emplace_back(info.shape[0], info.shape[1], CV_8UC1, imagePtr);
+  }
+
+  ScaleLines cppMultiscaleSegs = scalelines_to_cpp(multiscale_segs);
+
+  eth::LineBandDescriptor lineDesc(numOfBands, widthOfBand);
+  std::vector<std::vector<cv::Mat>> descriptors;
+
+  auto gradientExtractor = std::make_shared<eth::StateOctaveKeyLineDetector>(nullptr);
+  auto pyramidInfo = std::make_shared<eth::MultiOctaveSegmentDetector>(gradientExtractor);
+  pyramidInfo->octaveKeyLines(cppPyr);
+
+  lineDesc.compute(cppPyr[0], cppMultiscaleSegs, descriptors, pyramidInfo);
+  return py::cast(descrs_to_py(descriptors));
+}
+
 py::list run_lbd_matching_multiscale(const py::list &segs1, const py::list &segs2,
                                      const py::list &descrs1, const py::list &descrs2) {
   std::vector<std::pair<uint32_t, uint32_t>> result;
@@ -321,6 +360,17 @@ PYBIND11_MODULE(pytlbd, m) {
         py::arg("widthOfBand") = 7);
 
   m.def("lbd_multiscale", &run_lbd_multiscale, R"pbdoc(
+        Computes Line Band Descriptor (LBD) in the detected multi-scale segments.
+        The descriptor contains 8m floating point values, where m is the number of bands.
+        For each band, the first 4 values are the mean gradients and the last 4 are the s.t.d. of the gradients.
+    )pbdoc",
+        py::arg("img"),
+        py::arg("multiscale_segs"),
+        py::arg("numOfBands") = 9,
+        py::arg("widthOfBand") = 7
+  );
+
+  m.def("lbd_multiscale_pyr", &run_lbd_multiscale_pyr, R"pbdoc(
         Computes Line Band Descriptor (LBD) in the detected multi-scale segments.
         The descriptor contains 8m floating point values, where m is the number of bands.
         For each band, the first 4 values are the mean gradients and the last 4 are the s.t.d. of the gradients.

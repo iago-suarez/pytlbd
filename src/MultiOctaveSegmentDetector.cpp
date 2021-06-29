@@ -1,5 +1,6 @@
 
 #include "multiscale/MultiOctaveSegmentDetector.h"
+#include <opencv2/opencv.hpp>
 
 namespace eth {
 
@@ -252,6 +253,34 @@ std::vector<std::vector<cv::line_descriptor::KeyLine>> MultiOctaveSegmentDetecto
 
   return mergeOctaveLines(octaveSegments, saliencies, nPixels);
 }
+
+std::vector<std::vector<cv::line_descriptor::KeyLine>> MultiOctaveSegmentDetector::octaveKeyLines(const std::vector<cv::Mat> &pyramid)
+{
+  for (const cv::Mat &image: pyramid) {
+    if (image.type() != CV_8UC1) {
+      std::cerr << "Error: The image should have type CV_8UC1" << std::endl;
+      throw std::invalid_argument("Error: The image should have type CV_8UC1");
+    }
+  }
+
+  std::vector<Segments> octaveSegments;
+  std::vector<std::vector<float>> saliencies;
+  std::vector<std::vector<size_t>> nPixels;
+  unsigned int numOfFinalLine = 0;
+  for (int o = 0; o < pyramid.size(); o++) {
+    const eth::Segments &detectedSegments = octaveSegDetectors[o]->detect(pyramid[o]);
+    octaveSegments.push_back(detectedSegments);
+    saliencies.push_back(octaveSegDetectors[o]->getSegmentsSalience());
+    nPixels.emplace_back();
+    for (int i = 0; i < detectedSegments.size(); i++) {
+      nPixels.back().push_back(octaveSegDetectors[o]->getNumberOfPixels(i));
+    }
+    numOfFinalLine += detectedSegments.size();
+  }
+
+  return mergeOctaveLines(octaveSegments, saliencies, nPixels);
+}
+
 
 std::vector<cv::Mat> MultiOctaveSegmentDetector::buildGaussianPyramid(const cv::Mat &initialImage,
                                                                       float factor) {
