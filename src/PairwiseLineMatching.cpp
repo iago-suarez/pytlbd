@@ -21,11 +21,15 @@
 #define Inf       1e10 //Infinity
 //the resolution scale of theta histogram, used when compute angle histogram of lines in the image
 #define ResolutionScale  20  //10 degree
+#define RadsResolutionScale  0.3490658503988659 //10 degree
 /*The following two thresholds are used to decide whether the estimated global rotation is acceptable.
  *Some image pairs don't have a stable global rotation angle, e.g. the image pair of the wide baseline
  *non planar scene. */
 #define AcceptableAngleHistogramDifference 0.49
 #define AcceptableLengthVectorDifference   0.4
+// A matching between histogram orientations is considered relevant if the probability
+// of its distance is smaller than  StatisticalRelevanceTh
+#define StatisticalRelevanceTh   0.02
 
 
 /*The following four thresholds are used to decide whether a line in the left and a line in the right
@@ -87,16 +91,47 @@ void PairwiseLineMatching::matchLines(eth::ScaleLines &linesInLeft,
   TIME_STOP("3.3 GENERATE MATCHING FROM EIGENVECTOR");
 }
 
+//template<int dim>
+//cv::Mat plotHistogram(cv::Vec<double, dim> hist) {
+//  int hist_w = 512, hist_h = 400;
+//  int bin_w = hist_w / (float) dim;
+//  cv::Mat histImage(hist_h, hist_w, CV_8UC3, cv::Scalar(255, 255, 255));
+//  for (int i = 0; i < dim; i++) {
+//    line(histImage,
+//         cv::Point(15 + bin_w * i, hist_h),
+//         cv::Point(15 + bin_w * i, hist_h - hist[i] * 400),
+//         cv::Scalar(0, 0, 0), bin_w / 2, 8, 0);
+//  }
+//  return histImage;
+//}
+
+inline double normalCDF(double value, double mean, double std) {
+//  return 0.5 * std::erfc(-((value - mean) / std) * M_SQRT1_2);
+  double result = 0.5 * std::erfc(-((value - mean) / std) * M_SQRT1_2);
+  return result;
+}
+
+template<int dim>
+inline std::pair<double, double> meanStdev(const cv::Vec<double, dim> &vec) {
+  double mean = 0, stdev = 0;
+  for (int i = 0; i < dim; i++) mean += vec[i];
+  mean = mean / dim;
+
+  for (int i = 0; i < dim; i++) stdev += (vec[i] - mean) * (vec[i] - mean);
+  stdev = std::sqrt(stdev / dim);
+  return {mean, stdev};
+}
+
 double PairwiseLineMatching::globalRotationOfImagePair(eth::ScaleLines &linesInLeft, eth::ScaleLines &linesInRight) {
-  double TwoPI = 2 * M_PI;
-  double rotationAngle = TwoPI;
+  constexpr double TwoPI = 2 * M_PI;
+  // TwoPI / RadsResolutionScale
+  constexpr uint32_t dim = TwoPI / RadsResolutionScale; //number of the bins of histogram
+  constexpr double angleShift = RadsResolutionScale / 2;//make sure zero is the middle of the interval
 
   //step 1: compute the angle histogram of lines in the left and right images
-  constexpr uint32_t dim = 360 / ResolutionScale; //number of the bins of histogram
   uint32_t index;//index in the histogram
   double direction;
-  double scalar = 180 / (ResolutionScale * 3.1415927);//used when compute the index
-  double angleShift = (ResolutionScale * M_PI) / 360;//make sure zero is the middle of the interval
+  double rotationAngle = TwoPI;
 
   cv::Vec<double, dim> angleHistLeft;
   cv::Vec<double, dim> angleHistRight;
@@ -107,17 +142,21 @@ double PairwiseLineMatching::globalRotationOfImagePair(eth::ScaleLines &linesInL
   lengthLeft = 0;
   lengthRight = 0;
 
-  for (auto & lineVec : linesInLeft) {
+  for (auto &lineVec : linesInLeft) {
+    // Compute the line direction in degrees
     direction = lineVec[0].angle + M_PI + angleShift;
     direction = direction < TwoPI ? direction : (direction - TwoPI);
-    index = floor(direction * scalar);
+    // Calculate the index where it lies
+    index = floor(direction / RadsResolutionScale);
     angleHistLeft[index]++;
     lengthLeft[index] += lineVec[0].lineLength;
   }
-  for (auto & lineVec : linesInRight) {
+  for (auto &lineVec : linesInRight) {
+    // Compute the line direction in degrees
     direction = lineVec[0].angle + M_PI + angleShift;
     direction = direction < TwoPI ? direction : (direction - TwoPI);
-    index = floor(direction * scalar);
+    // Calculate the index where it lies
+    index = floor(direction / RadsResolutionScale);
     angleHistRight[index]++;
     lengthRight[index] += lineVec[0].lineLength;
   }
@@ -128,12 +167,14 @@ double PairwiseLineMatching::globalRotationOfImagePair(eth::ScaleLines &linesInL
   lengthRight = (1 / cv::norm(lengthRight)) * lengthRight;
 
   //step 2: find shift to decide the approximate global rotation
-  cv::Vec<double, dim> difVec;//the difference vector between left histogram and shifted right histogram
-  double minDif = 10;//the minimal angle histogram difference
-  double secondMinDif = 10;//the second minimal histogram difference
-  size_t minShift;//the shift of right angle histogram when minimal difference achieved
+  cv::Vec<double, dim> difVec; //the difference vector between left histogram and shifted right histogram
+  cv::Vec<double, dim> shiftDifVec;
+  double minDif = 10; //the minimal angle histogram difference
+  double secondMinDif = 10; //the second minimal histogram difference
+  size_t minShift; //the shift of right angle histogram when minimal difference achieved
 
   cv::Vec<double, dim> lengthDifVec;//the length difference vector between left and right
+  cv::Vec<double, dim> shiftLengthDifVec;
   double minLenDif = 10;//the minimal length difference
   double secondMinLenDif = 10;//the second minimal length difference
   size_t minLenShift;//the shift of right length vector when minimal length difference achieved
@@ -143,11 +184,12 @@ double PairwiseLineMatching::globalRotationOfImagePair(eth::ScaleLines &linesInL
     for (size_t j = 0; j < dim; j++) {
       index = j + shift;
       index = index < dim ? index : (index - dim);
-      difVec[j] = angleHistLeft[j] - angleHistRight[index];
-      lengthDifVec[j] = lengthLeft[j] - lengthRight[index];
+      difVec[j] = std::abs(angleHistLeft[j] - angleHistRight[index]);
+      lengthDifVec[j] = std::abs(lengthLeft[j] - lengthRight[index]);
     }
     //find the minShift and secondMinShift for angle histogram
     normOfVec = cv::norm(difVec);
+    shiftDifVec[shift] = normOfVec;
     if (normOfVec < secondMinDif) {
       if (normOfVec < minDif) {
         secondMinDif = minDif;
@@ -157,8 +199,9 @@ double PairwiseLineMatching::globalRotationOfImagePair(eth::ScaleLines &linesInL
         secondMinDif = normOfVec;
       }
     }
-    //find the minLenShift and secondMinLenShift of length vector
+    // Find the minLenShift and secondMinLenShift of length vector
     normOfVec = cv::norm(lengthDifVec);
+    shiftLengthDifVec[shift] = normOfVec;
     if (normOfVec < secondMinLenDif) {
       if (normOfVec < minLenDif) {
         secondMinLenDif = minLenDif;
@@ -170,8 +213,34 @@ double PairwiseLineMatching::globalRotationOfImagePair(eth::ScaleLines &linesInL
     }
   }
 
+//  cv::imshow("angleHistLeft", plotHistogram(angleHistLeft));
+//  cv::imshow("angleHistRight", plotHistogram(angleHistRight));
+//  cv::imshow("lengthLeft", plotHistogram(lengthLeft));
+//  cv::imshow("lengthRight", plotHistogram(lengthRight));
+//  cv::imshow("Angle Diff", plotHistogram(shiftDifVec * 0.2));
+//  cv::imshow("Length Diff", plotHistogram(shiftLengthDifVec * 0.2));
+
+  auto anglesStats = meanStdev(shiftDifVec);
+  double angleProb = normalCDF(minDif, anglesStats.first, anglesStats.second);
+  auto lengthsStats = meanStdev(shiftLengthDifVec);
+  double lengthProb = normalCDF(minLenDif, lengthsStats.first, lengthsStats.second);
+
+//  std::cout << "Length min value: " << minLenDif << ", mean: " << lengthsStats.first
+//            << ", Angle std: " << lengthsStats.second << ", prob: " << lengthProb << std::endl;
+//  std::cout << "Angle min value: " << minDif << ", mean: " << anglesStats.first
+//            << ", Angle std: " << anglesStats.second << ", prob: " << angleProb << std::endl;
+
+//  cv::waitKey();
+
+  bool statisticallyRelevant = angleProb < StatisticalRelevanceTh || lengthProb < StatisticalRelevanceTh;
+//  std::cout << "--> Statistically relevant: " << (statisticallyRelevant ? "TRUE" : "FALSE") << std::endl;
+//  std::cout << "--> Same optimal rot: " << (minLenShift == minShift ? "TRUE" : "FALSE") << std::endl;
+
   //first check whether there exist an approximate global rotation angle between image pair
-  if (minDif < AcceptableAngleHistogramDifference && minLenDif < AcceptableLengthVectorDifference) {
+  if (minDif < AcceptableAngleHistogramDifference &&
+      minLenDif < AcceptableLengthVectorDifference &&
+      minLenShift == minShift &&
+      statisticallyRelevant) {
     rotationAngle = minShift * ResolutionScale;
     if (rotationAngle > 90 && 360 - rotationAngle > 90) {
       //In most case we believe the rotation angle between two image pairs should belong to [-Pi/2, Pi/2]
@@ -180,8 +249,6 @@ double PairwiseLineMatching::globalRotationOfImagePair(eth::ScaleLines &linesInL
     rotationAngle = rotationAngle * M_PI / 180;
   }
 
-//  std::cout << "minimal histgram distance = " << minDif << ", Approximate global rotation angle = "
-//  << rotationAngle << std::endl;
   return rotationAngle;
 }
 
@@ -265,7 +332,7 @@ void PairwiseLineMatching::buildAdjacencyMatrix(eth::ScaleLines &linesInLeft,
 
   if (nodesList.size() > MAX_SUPPORTED_NODES) {
     std::cerr << "Too many nodes in the graph. The process will probably break due the lack of memory so"
-            " lets reduce the number to " << MAX_SUPPORTED_NODES << std::endl;
+                 " lets reduce the number to " << MAX_SUPPORTED_NODES << std::endl;
     nodesList.resize(MAX_SUPPORTED_NODES);
   }
 
@@ -555,7 +622,7 @@ void PairwiseLineMatching::matchingResultFromPrincipalEigenvector(
   double relativeAngleDif;
 
   matchResult.clear();
-  if(eigenMap.empty()){
+  if (eigenMap.empty()) {
     return;
   }
 

@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 14)
 add_subdirectory(pybind11)
 
 ###################################### OpenCV ######################################
-find_package(OpenCV QUIET)
+find_package(OpenCV)
 message( STATUS "    OpenCV_DIR: " ${OpenCV_DIR})
 message( STATUS "    OpenCV_INCLUDE_DIRS: " ${OpenCV_INCLUDE_DIRS})
 message( STATUS "    OpenCV_LIBS: " ${OpenCV_LIBS})
