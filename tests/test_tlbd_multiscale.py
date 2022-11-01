@@ -12,11 +12,13 @@ def draw_multiscale_matches(img_left, img_right, segs_left, segs_right, matches)
     right_color_img = cv2.cvtColor(img_right, cv2.COLOR_GRAY2BGR)
     r1, g1, b1 = [], [], []  # the line colors
 
+    matches = sorted(matches, key=lambda x: -x[2])
+
     for pair in range(len(matches)):
         r1.append(int(255 * np.random.rand()))
         g1.append(int(255 * np.random.rand()))
         b1.append(255 - r1[-1])
-        line_id_l, line_id_r = matches[pair]
+        line_id_l, line_id_r, match_score = matches[pair]
 
         octave, l = segs_left[line_id_l][0]
         l = l * np.sqrt(2) ** octave
@@ -29,7 +31,7 @@ def draw_multiscale_matches(img_left, img_right, segs_left, segs_right, matches)
     result_img = np.hstack([left_color_img, right_color_img])
     result_img_tmp = result_img.copy()
     for pair in range(27, len(matches)):
-        line_id_l, line_id_r = matches[pair]
+        line_id_l, line_id_r, match_score = matches[pair]
         octave_left, seg_left = segs_left[line_id_l][0]
         octave_right, seg_right = segs_right[line_id_r][0]
         seg_left = seg_left[:4] * (np.sqrt(2) ** octave_left)

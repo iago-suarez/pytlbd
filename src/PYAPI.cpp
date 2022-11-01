@@ -7,6 +7,7 @@
 #include <multiscale/MultiOctaveSegmentDetector.h>
 #include <LineBandDescriptor.h>
 #include <PairwiseLineMatching.h>
+#include "multiscale/MultiScaleMatching.h"
 
 # define ASSERT_ALW(x) \
   if(!(x)) throw std::logic_error(std::string("") + __FILE__ + ":" + std::to_string(__LINE__) + " Error: " + #x);
@@ -311,7 +312,7 @@ py::list run_lbd_multiscale_pyr(const std::vector<py::array> &pyr,
 
 py::list run_lbd_matching_multiscale(const py::list &segs1, const py::list &segs2,
                                      const py::list &descrs1, const py::list &descrs2) {
-  std::vector<std::pair<uint32_t, uint32_t>> result;
+  std::vector<std::pair<uint32_t, uint32_t>> matches;
 
   PairwiseLineMatching lineMatch;
   ScaleLines cppMultiscaleSegs1, cppMultiscaleSeg2;
@@ -322,8 +323,17 @@ py::list run_lbd_matching_multiscale(const py::list &segs1, const py::list &segs
   std::vector<std::vector<cv::Mat>> cppDescrs1 = descrs_to_cpp(tmp1),
       cppDescrs2 = descrs_to_cpp(tmp2);
 
-  lineMatch.matchLines(cppSegs1, cppSegs2, cppDescrs1, cppDescrs2, result);
-  return py::cast(result);
+  cv::Mat_<double> desDisMat = eth::MultiScaleMatching::bruteForceMatching(
+      cppDescrs1, cppDescrs2, cv::NORM_L2);
+
+  lineMatch.matchLines(cppSegs1, cppSegs2, cppDescrs1, cppDescrs2, matches);
+
+  std::vector<std::tuple<uint32_t, uint32_t, double>> results(matches.size());
+  for (int i = 0; i < matches.size(); i++) {
+    results[i] = {matches[i].first, matches[i].second, -desDisMat(matches[i].first, matches[i].second)};
+  }
+
+  return py::cast(results);
 }
 
 PYBIND11_MODULE(pytlbd, m) {
