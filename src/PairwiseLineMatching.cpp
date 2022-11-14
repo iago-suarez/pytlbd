@@ -357,11 +357,11 @@ void PairwiseLineMatching::buildAdjacencyMatrix(eth::ScaleLines &linesInLeft,
 
 #ifdef  WITH_ARPACK
   cv::Mat_<double> adjacenceVec = cv::Mat_<double>::zeros(1, dim * (dim + 1) / 2);
-  std::cout << "Computing LBD matching with ARPACK adjacenceVec size: " << adjacenceVec.size() << std::endl;
+  //std::cout << "Computing LBD matching with ARPACK adjacenceVec size: " << adjacenceVec.size() << std::endl;
 #define SET_NODE_SIMILARITY(i, j, similarity) adjacenceVec((2 * dim - (j) - 1) * (j) / 2 + (i)) = (similarity)
 #else
   cv::Mat_<double> A = cv::Mat_<double>::zeros(dim, dim);
-  std::cout << "Computing LBD matching with OpenCV. A size: " << A.size() << std::endl;
+  //std::cout << "Computing LBD matching with OpenCV. A size: " << A.size() << std::endl;
 #define SET_NODE_SIMILARITY(i, j, similarity) A((i), (j)) = (similarity); A((j), (i)) = (similarity);
 #endif
 
