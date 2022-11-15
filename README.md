@@ -15,7 +15,7 @@ optimize the line matching part.
 ### Download
 ```
 git clone git@github.com:iago-suarez/pytlbd.git
-cd pytldb
+cd pytlbd
 git submodule update --init --recursive 
 ```
 
